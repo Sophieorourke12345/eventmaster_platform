@@ -6,9 +6,21 @@ from flask_login import current_user, login_required
 
 from ..extensions import db
 from ..extensions import csrf
-from ..models import Event, EventStatus, Order, OrderStatus, Ticket, User, utc_now
+from ..models import Event, EventStatus, Order, OrderStatus, Ticket, User, UserRole, utc_now
 
 payments_bp = Blueprint("payments", __name__)
+
+
+def fulfil_paid_order(order, payment_intent_id=None):
+    """Mark an order paid and issue each ticket exactly once."""
+    if order.status != OrderStatus.PAID:
+        order.status = OrderStatus.PAID
+    if payment_intent_id and not order.stripe_payment_intent_id:
+        order.stripe_payment_intent_id = payment_intent_id
+    missing = max(order.quantity - len(order.tickets), 0)
+    for _ in range(missing):
+        db.session.add(Ticket(event=order.event, order=order))
+    db.session.commit()
 
 
 def configure_stripe():
@@ -177,6 +189,105 @@ def my_tickets():
     } for ticket in tickets]}
 
 
+@payments_bp.post("/checkout/confirm")
+@login_required
+def confirm_checkout():
+    """Recover a paid checkout when a development webhook was unavailable."""
+    if not configure_stripe():
+        return {"message": "Stripe test mode is not configured yet."}, 503
+    session_id = (request.get_json(silent=True) or {}).get("sessionId", "").strip()
+    if not session_id:
+        return {"message": "The checkout reference is missing."}, 400
+    order = Order.query.filter_by(stripe_checkout_session_id=session_id, buyer_id=current_user.id).first()
+    if not order:
+        return {"message": "This checkout does not belong to your account."}, 404
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except stripe.StripeError:
+        return {"message": "Stripe could not confirm this payment yet. Please try again."}, 502
+    if session.payment_status != "paid":
+        return {"message": "Stripe is still processing this payment."}, 409
+    fulfil_paid_order(order, session.payment_intent)
+    return {"confirmed": True, "ticketCount": len(order.tickets)}
+
+
+@payments_bp.get("/check-in/events")
+@login_required
+def check_in_events():
+    query = Event.query
+    if current_user.role != UserRole.ADMIN:
+        query = query.filter_by(organiser_id=current_user.id)
+    events = query.order_by(Event.starts_at.desc()).all()
+    return {"events": [{
+        "id": event.id,
+        "title": event.title,
+        "startsAt": event.starts_at.isoformat(),
+        "ticketsIssued": event.tickets.count(),
+        "checkedIn": event.tickets.filter(Ticket.checked_in_at.isnot(None)).count(),
+    } for event in events]}
+
+
+@payments_bp.get("/check-in/events/<int:event_id>/tickets")
+@login_required
+def event_guest_list(event_id):
+    event = db.get_or_404(Event, event_id)
+    if current_user.role != UserRole.ADMIN and event.organiser_id != current_user.id:
+        return {"message": "You cannot view another organiser's guest list."}, 403
+    tickets = event.tickets.join(Order).order_by(User.last_name, User.first_name, Ticket.id).join(User, Order.buyer_id == User.id).all()
+    return {"tickets": [{
+        "id": ticket.id,
+        "attendee": ticket.order.buyer.full_name,
+        "email": ticket.order.buyer.email,
+        "verificationCode": ticket.verification_code,
+        "checkedInAt": ticket.checked_in_at.isoformat() if ticket.checked_in_at else None,
+    } for ticket in tickets]}
+
+
+@payments_bp.post("/check-in")
+@login_required
+def check_in_ticket():
+    data = request.get_json(silent=True) or {}
+    code = data.get("verificationCode", "").strip()
+    if code.startswith("eventspace://ticket/"):
+        code = code.removeprefix("eventspace://ticket/")
+    ticket = Ticket.query.filter_by(verification_code=code).first()
+    if not ticket:
+        return {"message": "This QR code is not a valid EventSpace ticket."}, 404
+    if current_user.role != UserRole.ADMIN and ticket.event.organiser_id != current_user.id:
+        return {"message": "This ticket belongs to another organiser's event."}, 403
+    try:
+        expected_event_id = int(data.get("eventId")) if data.get("eventId") else None
+    except (TypeError, ValueError):
+        return {"message": "Choose a valid event before checking in tickets."}, 400
+    if expected_event_id and ticket.event_id != expected_event_id:
+        return {"message": f"Valid ticket, but it is for {ticket.event.title}."}, 409
+    if ticket.checked_in_at:
+        return {
+            "status": "already_checked_in",
+            "message": "This ticket has already been checked in.",
+            "checkedInAt": ticket.checked_in_at.isoformat(),
+            "ticket": {
+                "id": ticket.id,
+                "attendee": ticket.order.buyer.full_name,
+                "eventId": ticket.event_id,
+                "eventTitle": ticket.event.title,
+            },
+        }
+    ticket.checked_in_at = utc_now()
+    db.session.commit()
+    return {
+        "status": "checked_in",
+        "message": "Ticket accepted. Welcome in!",
+        "checkedInAt": ticket.checked_in_at.isoformat(),
+        "ticket": {
+            "id": ticket.id,
+            "attendee": ticket.order.buyer.full_name,
+            "eventId": ticket.event_id,
+            "eventTitle": ticket.event.title,
+        },
+    }
+
+
 @payments_bp.post("/webhook")
 @csrf.exempt
 def stripe_webhook():
@@ -192,11 +303,7 @@ def stripe_webhook():
     if event["type"] == "checkout.session.completed" and stripe_object.get("payment_status") == "paid":
         order = Order.query.filter_by(stripe_checkout_session_id=stripe_object["id"]).first()
         if order and order.status == OrderStatus.PENDING:
-            order.status = OrderStatus.PAID
-            order.stripe_payment_intent_id = stripe_object.get("payment_intent")
-            for _ in range(order.quantity):
-                db.session.add(Ticket(event=order.event, order=order))
-            db.session.commit()
+            fulfil_paid_order(order, stripe_object.get("payment_intent"))
     elif event["type"] == "checkout.session.expired":
         order = Order.query.filter_by(stripe_checkout_session_id=stripe_object["id"]).first()
         if order and order.status == OrderStatus.PENDING:

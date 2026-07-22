@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import CreateEventView from '../views/CreateEventView.vue'
 import CheckoutSuccessView from '../views/CheckoutSuccessView.vue'
+import CheckInView from '../views/CheckInView.vue'
 import AdminView from '../views/AdminView.vue'
 import EditEventView from '../views/EditEventView.vue'
 import EventDetailView from '../views/EventDetailView.vue'
@@ -28,6 +29,7 @@ const router = createRouter({
     { path: '/admin', component: AdminView, meta: { requiresAdmin: true } },
     { path: '/tickets', component: TicketsView, meta: { requiresAuth: true } },
     { path: '/checkout/success', component: CheckoutSuccessView, meta: { requiresAuth: true } },
+    { path: '/organiser/check-in', component: CheckInView, meta: { requiresAuth: true } },
   ],
 })
 

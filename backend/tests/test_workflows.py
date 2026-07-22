@@ -136,6 +136,22 @@ class EventSpaceWorkflowTests(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Order.query.one().status, OrderStatus.PAID)
             self.assertEqual(Ticket.query.count(), 2)
+            verification_code = Ticket.query.first().verification_code
+
+        self.assertEqual(self.request("POST", "/api/auth/logout").status_code, 204)
+        login = self.request("POST", "/api/auth/login", json={"email": "host@example.com", "password": "password123"})
+        self.assertEqual(login.status_code, 200)
+        guest_list = self.client.get(f"/api/payments/check-in/events/{event_id}/tickets")
+        self.assertEqual(len(guest_list.get_json()["tickets"]), 2)
+        check_in = self.request("POST", "/api/payments/check-in", json={
+            "verificationCode": verification_code, "eventId": event_id,
+        })
+        self.assertEqual(check_in.status_code, 200)
+        self.assertEqual(check_in.get_json()["status"], "checked_in")
+        duplicate = self.request("POST", "/api/payments/check-in", json={
+            "verificationCode": verification_code, "eventId": event_id,
+        })
+        self.assertEqual(duplicate.get_json()["status"], "already_checked_in")
 
 
 if __name__ == "__main__":

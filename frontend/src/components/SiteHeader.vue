@@ -13,6 +13,7 @@ const open = ref(false)
       <RouterLink to="/events">Explore events</RouterLink>
       <RouterLink v-if="user" to="/tickets">My tickets</RouterLink>
       <RouterLink v-if="user" to="/organiser">Organiser hub</RouterLink>
+      <RouterLink v-if="user && user.role !== 'attendee'" to="/organiser/check-in">Scan tickets</RouterLink>
       <RouterLink v-if="user?.role === 'admin'" to="/admin">Admin review</RouterLink>
       <RouterLink v-if="user" class="button button--small button--outline" to="/organiser/events/new">Host an event</RouterLink>
       <RouterLink v-if="!user" to="/login">Log in</RouterLink>
