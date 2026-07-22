@@ -55,13 +55,16 @@ def connect_onboard():
         )
     except stripe.InvalidRequestError as error:
         db.session.rollback()
-        if "signed up for Connect" in str(error):
+        stripe_message = error.user_message or str(error)
+        if "signed up for Connect" in stripe_message:
             return {
                 "message": "Finish the one-time Stripe Connect platform setup, then try again.",
                 "setupUrl": "https://dashboard.stripe.com/connect",
             }, 409
-        current_app.logger.warning("Stripe rejected connected-account onboarding: %s", error.user_message)
-        return {"message": "Stripe could not start organiser onboarding. Check your Connect settings."}, 400
+        current_app.logger.warning("Stripe rejected connected-account onboarding: %s", stripe_message)
+        return {
+            "message": f"Stripe could not start organiser onboarding: {stripe_message}",
+        }, 400
     except stripe.StripeError:
         db.session.rollback()
         current_app.logger.exception("Stripe organiser onboarding failed")
