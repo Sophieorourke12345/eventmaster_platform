@@ -9,7 +9,9 @@ from .extensions import bcrypt, cors, csrf, db, login_manager, migrate
 
 def create_app(test_config=None):
     project_root = Path(__file__).resolve().parents[2]
-    load_dotenv(project_root / ".env")
+    # The project-local file is the source of truth for local development.
+    # Production deployments don't include .env and use their platform secrets.
+    load_dotenv(project_root / ".env", override=True)
 
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
