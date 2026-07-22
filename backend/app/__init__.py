@@ -56,5 +56,7 @@ def create_app(test_config=None):
     def health():
         return {"status": "ok"}
 
-    return app
+    from .commands import register_commands
+    register_commands(app)
 
+    return app

@@ -1,6 +1,7 @@
 import re
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, request
 from flask_login import current_user, login_required
@@ -55,6 +56,34 @@ def parse_event_payload(data):
     }
 
 
+def date_window(value):
+    """Return an inclusive UTC window for common Ireland event filters."""
+    local_tz = ZoneInfo("Europe/Dublin")
+    now = datetime.now(local_tz)
+    today = now.date()
+
+    if value == "today":
+        start_day = end_day = today
+    elif value == "tomorrow":
+        start_day = end_day = today + timedelta(days=1)
+    elif value == "this-weekend":
+        days_until_saturday = (5 - today.weekday()) % 7
+        start_day = today + timedelta(days=days_until_saturday)
+        end_day = start_day + timedelta(days=1)
+    elif value == "next-week":
+        start_day = today + timedelta(days=(7 - today.weekday()))
+        end_day = start_day + timedelta(days=6)
+    elif value == "this-week":
+        start_day = today
+        end_day = today + timedelta(days=(6 - today.weekday()))
+    else:
+        return None
+
+    start = datetime.combine(start_day, time.min, tzinfo=local_tz).astimezone(timezone.utc)
+    end = datetime.combine(end_day, time.max, tzinfo=local_tz).astimezone(timezone.utc)
+    return start, end
+
+
 @events_bp.get("")
 def list_events():
     query = Event.query.filter_by(status=EventStatus.APPROVED)
@@ -66,7 +95,23 @@ def list_events():
         query = query.filter_by(category=request.args["category"])
     if request.args.get("county"):
         query = query.filter_by(county=request.args["county"])
-    events = query.order_by(Event.starts_at.asc()).all()
+    window = date_window(request.args.get("date"))
+    if window:
+        query = query.filter(Event.starts_at.between(*window))
+    if request.args.get("minPrice"):
+        query = query.filter(Event.ticket_price_cents >= int(float(request.args["minPrice"]) * 100))
+    if request.args.get("maxPrice"):
+        query = query.filter(Event.ticket_price_cents <= int(float(request.args["maxPrice"]) * 100))
+    if request.args.get("free") == "true":
+        query = query.filter(Event.ticket_price_cents == 0)
+    sort = request.args.get("sort", "date")
+    if sort == "price-low":
+        query = query.order_by(Event.ticket_price_cents.asc(), Event.starts_at.asc())
+    elif sort == "price-high":
+        query = query.order_by(Event.ticket_price_cents.desc(), Event.starts_at.asc())
+    else:
+        query = query.order_by(Event.starts_at.asc())
+    events = query.all()
     return {"events": [event.to_dict() for event in events]}
 
 
@@ -104,11 +149,45 @@ def my_events():
     return {"events": [event.to_dict(include_private=True) for event in events]}
 
 
+@events_bp.put("/<int:event_id>")
+@login_required
+def update_event(event_id):
+    event = db.get_or_404(Event, event_id)
+    if event.organiser_id != current_user.id and current_user.role != UserRole.ADMIN:
+        return {"message": "You do not have permission to edit this event."}, 403
+    if event.status == EventStatus.APPROVED and current_user.role != UserRole.ADMIN:
+        return {"message": "Contact EventSpace before editing a live event."}, 409
+    try:
+        fields = parse_event_payload(request.get_json(silent=True) or {})
+    except (TypeError, ValueError) as exc:
+        return {"message": str(exc)}, 400
+    for field, value in fields.items():
+        setattr(event, field, value)
+    event.status = EventStatus.PENDING
+    event.rejection_reason = None
+    db.session.commit()
+    return {"event": event.to_dict(include_private=True)}
+
+
 @events_bp.get("/admin/pending")
 @role_required(UserRole.ADMIN)
 def pending_events():
     events = Event.query.filter_by(status=EventStatus.PENDING).order_by(Event.created_at.asc()).all()
     return {"events": [event.to_dict(include_private=True) for event in events]}
+
+
+@events_bp.get("/admin/overview")
+@role_required(UserRole.ADMIN)
+def admin_overview():
+    events = Event.query.order_by(Event.created_at.desc()).all()
+    counts = {
+        status.value: Event.query.filter_by(status=status).count()
+        for status in EventStatus
+    }
+    return {
+        "counts": counts,
+        "events": [event.to_dict(include_private=True) for event in events],
+    }
 
 
 @events_bp.post("/<int:event_id>/decision")
@@ -123,4 +202,3 @@ def decide_event(event_id):
     event.rejection_reason = str(data.get("reason", "")).strip() if decision == "rejected" else None
     db.session.commit()
     return {"event": event.to_dict(include_private=True)}
-

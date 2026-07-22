@@ -1,5 +1,12 @@
 <script setup>
-const categories = ['Live music', 'Comedy', 'Food & drink', 'Sport', 'Workshops', 'Festivals']
+const categories = [
+  { label: 'Live music', value: 'Music' },
+  { label: 'Comedy', value: 'Comedy' },
+  { label: 'Food & drink', value: 'Food & Drink' },
+  { label: 'Sport', value: 'Sports' },
+  { label: 'Workshops', value: 'Education' },
+  { label: 'Festivals', value: 'Festival' },
+]
 </script>
 
 <template>
@@ -24,8 +31,8 @@ const categories = ['Live music', 'Comedy', 'Food & drink', 'Sport', 'Workshops'
   <section class="category-section shell">
     <div class="section-heading"><div><p class="eyebrow">Pick your mood</p><h2>What are you into?</h2></div><RouterLink to="/events">View everything →</RouterLink></div>
     <div class="category-grid">
-      <RouterLink v-for="(category, index) in categories" :key="category" :to="`/events?category=${encodeURIComponent(category)}`" :class="`category category--${index + 1}`">
-        <span>0{{ index + 1 }}</span><strong>{{ category }}</strong><i>↗</i>
+      <RouterLink v-for="(category, index) in categories" :key="category.value" :to="`/events?category=${encodeURIComponent(category.value)}`" :class="`category category--${index + 1}`">
+        <span>0{{ index + 1 }}</span><strong>{{ category.label }}</strong><i>↗</i>
       </RouterLink>
     </div>
   </section>
@@ -35,4 +42,3 @@ const categories = ['Live music', 'Comedy', 'Food & drink', 'Sport', 'Workshops'
     <div><p>Create your listing, pass our quick verification, and sell securely. EventSpace takes 4% only when you make a sale.</p><RouterLink class="button button--light" to="/organiser/events/new">Start hosting</RouterLink></div>
   </section>
 </template>
-
