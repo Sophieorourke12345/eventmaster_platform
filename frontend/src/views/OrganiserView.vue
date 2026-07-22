@@ -1,0 +1,8 @@
+<script setup>
+import { onMounted, ref } from 'vue'
+import { api, eventDate } from '../lib'
+const events = ref([]); const error = ref('')
+onMounted(async () => { try { events.value = (await api('/events/mine/list')).events } catch (err) { error.value = err.message } })
+</script>
+<template><section class="page-hero shell"><p class="eyebrow">Organiser hub</p><h1>Your events</h1><p>Manage submissions, verification and ticket sales in one place.</p><RouterLink class="button" to="/organiser/events/new">Create event</RouterLink></section><section class="shell"><p v-if="error" class="state-message state-message--error">{{ error }}</p><div v-else-if="events.length" class="dashboard-list"><article v-for="event in events" :key="event.id"><div><span :class="`status status--${event.status}`">{{ event.status }}</span><h2>{{ event.title }}</h2><p>{{ eventDate(event.startsAt) }} · {{ event.ticketsRemaining }} tickets remaining</p></div><RouterLink :to="`/events/${event.slug}`">View →</RouterLink></article></div><div v-else class="empty-state"><span>✦</span><h2>Your first event starts here</h2><p>Create a listing and submit it for verification.</p><RouterLink class="button" to="/organiser/events/new">Host an event</RouterLink></div></section></template>
+

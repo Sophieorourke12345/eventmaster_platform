@@ -1,0 +1,60 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from flask import Flask, jsonify
+
+from .extensions import bcrypt, cors, db, login_manager, migrate
+
+
+def create_app(test_config=None):
+    project_root = Path(__file__).resolve().parents[2]
+    load_dotenv(project_root / ".env")
+
+    app = Flask(__name__, instance_relative_config=True)
+    app.config.from_mapping(
+        SECRET_KEY=os.getenv("SECRET_KEY", "development-only-change-me"),
+        SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", "sqlite:///eventspace.db"),
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        MAX_CONTENT_LENGTH=10 * 1024 * 1024,
+        UPLOAD_FOLDER=project_root / "uploads",
+        STRIPE_PLATFORM_FEE_PERCENT=int(os.getenv("STRIPE_PLATFORM_FEE_PERCENT", "4")),
+    )
+    if test_config:
+        app.config.update(test_config)
+
+    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+    Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
+
+    db.init_app(app)
+    bcrypt.init_app(app)
+    login_manager.init_app(app)
+    migrate.init_app(app, db)
+    cors.init_app(
+        app,
+        resources={r"/api/*": {"origins": os.getenv("FRONTEND_URL", "http://localhost:5173")}},
+        supports_credentials=True,
+    )
+
+    from .models import User
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return db.session.get(User, int(user_id))
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        return jsonify({"message": "Authentication required."}), 401
+
+    from .api.auth import auth_bp
+    from .api.events import events_bp
+
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
+    app.register_blueprint(events_bp, url_prefix="/api/events")
+
+    @app.get("/api/health")
+    def health():
+        return {"status": "ok"}
+
+    return app
+
