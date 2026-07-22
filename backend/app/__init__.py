@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 
-from .extensions import bcrypt, cors, db, login_manager, migrate
+from .extensions import bcrypt, cors, csrf, db, login_manager, migrate
 
 
 def create_app(test_config=None):
@@ -19,6 +19,12 @@ def create_app(test_config=None):
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
         UPLOAD_FOLDER=project_root / "uploads",
         STRIPE_PLATFORM_FEE_PERCENT=int(os.getenv("STRIPE_PLATFORM_FEE_PERCENT", "4")),
+        STRIPE_SECRET_KEY=os.getenv("STRIPE_SECRET_KEY", ""),
+        STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
+        FRONTEND_URL=os.getenv("FRONTEND_URL", "http://localhost:5173"),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production",
     )
     if test_config:
         app.config.update(test_config)
@@ -30,6 +36,7 @@ def create_app(test_config=None):
     bcrypt.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
     cors.init_app(
         app,
         resources={r"/api/*": {"origins": os.getenv("FRONTEND_URL", "http://localhost:5173")}},
@@ -46,11 +53,19 @@ def create_app(test_config=None):
     def unauthorized():
         return jsonify({"message": "Authentication required."}), 401
 
+    from flask_wtf.csrf import CSRFError
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(error):
+        return jsonify({"message": "Your secure session expired. Refresh and try again."}), 400
+
     from .api.auth import auth_bp
     from .api.events import events_bp
+    from .api.payments import payments_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(events_bp, url_prefix="/api/events")
+    app.register_blueprint(payments_bp, url_prefix="/api/payments")
 
     @app.get("/api/health")
     def health():

@@ -2,11 +2,17 @@ import re
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_user, logout_user
+from flask_wtf.csrf import generate_csrf
 
 from ..extensions import bcrypt, db
 from ..models import User, UserRole
 
 auth_bp = Blueprint("auth", __name__)
+
+
+@auth_bp.get("/csrf")
+def csrf_token():
+    return {"csrfToken": generate_csrf()}
 
 
 def password_error(password):
@@ -68,4 +74,3 @@ def me():
     if not current_user.is_authenticated:
         return jsonify({"user": None})
     return jsonify({"user": current_user.to_dict()})
-

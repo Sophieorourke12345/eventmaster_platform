@@ -11,6 +11,7 @@ const open = ref(false)
     <button class="menu-button" type="button" :aria-expanded="open" aria-label="Open navigation" @click="open = !open"><span></span><span></span></button>
     <nav :class="{ open }" aria-label="Main navigation" @click="open = false">
       <RouterLink to="/events">Explore events</RouterLink>
+      <RouterLink v-if="user" to="/tickets">My tickets</RouterLink>
       <RouterLink v-if="user" to="/organiser">Organiser hub</RouterLink>
       <RouterLink v-if="user?.role === 'admin'" to="/admin">Admin review</RouterLink>
       <RouterLink v-if="user" class="button button--small button--outline" to="/organiser/events/new">Host an event</RouterLink>

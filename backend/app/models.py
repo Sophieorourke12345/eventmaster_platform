@@ -41,6 +41,8 @@ class User(UserMixin, db.Model):
     role = db.Column(db.Enum(UserRole), nullable=False, default=UserRole.ATTENDEE)
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     stripe_account_id = db.Column(db.String(255), unique=True)
+    stripe_charges_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    stripe_payouts_enabled = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
 
     events = db.relationship("Event", back_populates="organiser", lazy="dynamic")
@@ -58,7 +60,8 @@ class User(UserMixin, db.Model):
             "email": self.email,
             "role": self.role.value,
             "emailVerified": self.email_verified,
-            "stripeOnboarded": bool(self.stripe_account_id),
+            "stripeAccountCreated": bool(self.stripe_account_id),
+            "stripeOnboarded": self.stripe_charges_enabled and self.stripe_payouts_enabled,
         }
 
 
@@ -82,6 +85,7 @@ class Event(db.Model):
     organiser = db.relationship("User", back_populates="events")
     images = db.relationship("EventImage", back_populates="event", cascade="all, delete-orphan")
     tickets = db.relationship("Ticket", back_populates="event", lazy="dynamic")
+    orders = db.relationship("Order", back_populates="event", lazy="dynamic")
 
     @property
     def tickets_sold(self):
@@ -89,7 +93,11 @@ class Event(db.Model):
 
     @property
     def tickets_remaining(self):
-        return max(self.ticket_capacity - self.tickets_sold, 0)
+        reserved = self.orders.filter(
+            Order.status == OrderStatus.PENDING,
+            Order.expires_at > utc_now(),
+        ).with_entities(db.func.coalesce(db.func.sum(Order.quantity), 0)).scalar()
+        return max(self.ticket_capacity - self.tickets_sold - int(reserved or 0), 0)
 
     def to_dict(self, include_private=False):
         data = {
@@ -138,9 +146,10 @@ class Order(db.Model):
     stripe_payment_intent_id = db.Column(db.String(255), unique=True)
     status = db.Column(db.Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
 
     buyer = db.relationship("User", back_populates="orders")
-    event = db.relationship("Event")
+    event = db.relationship("Event", back_populates="orders")
     tickets = db.relationship("Ticket", back_populates="order", cascade="all, delete-orphan")
 
 
@@ -153,4 +162,3 @@ class Ticket(db.Model):
 
     event = db.relationship("Event", back_populates="tickets")
     order = db.relationship("Order", back_populates="tickets")
-

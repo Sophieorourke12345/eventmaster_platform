@@ -1,7 +1,20 @@
+let csrfToken
+
+async function secureHeaders(method) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method?.toUpperCase())) return {}
+  if (!csrfToken) {
+    const response = await fetch('/api/auth/csrf', { credentials: 'include' })
+    const body = await response.json()
+    csrfToken = body.csrfToken
+  }
+  return { 'X-CSRFToken': csrfToken }
+}
+
 export async function api(path, options = {}) {
+  const securityHeaders = await secureHeaders(options.method)
   const response = await fetch(`/api${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', ...securityHeaders, ...options.headers },
     ...options,
   })
   if (response.status === 204) return null
@@ -17,4 +30,3 @@ export function euro(cents) {
 export function eventDate(value) {
   return new Intl.DateTimeFormat('en-IE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
-

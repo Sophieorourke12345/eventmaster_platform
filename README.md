@@ -45,3 +45,30 @@ The Vite development server proxies `/api` and `/uploads` to Flask on port 5000.
 
 Ticket prices are stored in cents. For each successful sale, EventSpace records a 4% platform fee. Stripe processing fees are separate and the final fee-bearing arrangement must be confirmed before production launch.
 
+## Stripe test mode
+
+1. Activate Connect in a Stripe test-mode account.
+2. Add `STRIPE_SECRET_KEY` to the root `.env` file.
+3. Forward Stripe events to `/api/payments/webhook` and add the signing secret as `STRIPE_WEBHOOK_SECRET`.
+4. Keep `STRIPE_PLATFORM_FEE_PERCENT=4`.
+5. Sign in as an organiser and use **Connect with Stripe** in the organiser hub.
+
+The checkout uses a Stripe Connect destination charge. EventSpace collects the 4% application fee and transfers the remainder to the verified organiser. Checkout Sessions reserve inventory for 30 minutes. Tickets are issued only after a signed `checkout.session.completed` webhook confirms payment.
+
+For local webhook testing with Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:5000/api/payments/webhook
+```
+
+Never add Stripe keys to the source code or commit `.env`.
+
+## Tests
+
+```bash
+cd backend
+.venv/bin/python -m unittest discover -s tests -v
+
+cd ../frontend
+npm run build
+```
