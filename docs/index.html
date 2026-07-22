@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Discover verified local events and sell tickets with EventSpace, an Irish event marketplace for organisers and event-goers." />
+    <title>EventSpace | Verified events, real experiences</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #1c1830;
+        --muted: #686377;
+        --paper: #fffdf9;
+        --violet: #7157e8;
+        --violet-dark: #4b35b4;
+        --lavender: #eee9ff;
+        --peach: #ffb98d;
+        --mint: #a8e6cf;
+        --line: rgba(28, 24, 48, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--paper);
+        font-family: "DM Sans", sans-serif;
+        line-height: 1.6;
+      }
+
+      a { color: inherit; }
+      .wrap { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 253, 249, 0.9);
+        backdrop-filter: blur(16px);
+      }
+      nav { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+      .brand { text-decoration: none; font: 800 1.35rem "Manrope", sans-serif; letter-spacing: -0.04em; }
+      .brand span { color: var(--violet); }
+      .nav-links { display: flex; align-items: center; gap: 28px; }
+      .nav-links a { text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+      .nav-links a:hover { color: var(--violet); }
+
+      .hero {
+        min-height: 690px;
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        align-items: center;
+        gap: 72px;
+        padding: 88px 0 104px;
+      }
+      .eyebrow { margin: 0 0 18px; color: var(--violet-dark); font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.78rem; }
+      h1, h2, h3 { font-family: "Manrope", sans-serif; line-height: 1.08; letter-spacing: -0.045em; }
+      h1 { max-width: 720px; margin: 0; font-size: clamp(3.4rem, 7vw, 6.4rem); }
+      h1 em { color: var(--violet); font-style: normal; }
+      .hero-copy { max-width: 650px; margin: 28px 0 34px; color: var(--muted); font-size: 1.18rem; }
+      .actions { display: flex; flex-wrap: wrap; gap: 14px; }
+      .button { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 24px; border: 1px solid var(--ink); border-radius: 999px; text-decoration: none; font-weight: 700; }
+      .button.primary { border-color: var(--violet); color: white; background: var(--violet); box-shadow: 0 14px 30px rgba(113, 87, 232, 0.24); }
+      .button:hover { transform: translateY(-2px); }
+
+      .hero-art { position: relative; min-height: 490px; }
+      .shape { position: absolute; border-radius: 38% 62% 53% 47% / 47% 40% 60% 53%; }
+      .shape.one { inset: 14% 3% 5% 10%; background: var(--lavender); transform: rotate(-8deg); }
+      .shape.two { width: 185px; height: 185px; right: -4%; top: 2%; background: var(--peach); }
+      .shape.three { width: 120px; height: 120px; left: 0; bottom: 0; background: var(--mint); }
+      .ticket {
+        position: absolute;
+        inset: 16% 9% 13% 8%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 42px;
+        color: white;
+        background: linear-gradient(145deg, #26203e, #6049d2);
+        border-radius: 28px;
+        box-shadow: 0 34px 70px rgba(47, 37, 92, 0.28);
+        transform: rotate(5deg);
+      }
+      .ticket small { letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; }
+      .ticket strong { display: block; max-width: 300px; font: 700 clamp(2rem, 4vw, 3.5rem)/1.04 "Manrope", sans-serif; letter-spacing: -0.05em; }
+      .ticket-row { display: flex; justify-content: space-between; gap: 18px; padding-top: 24px; border-top: 1px dashed rgba(255,255,255,0.38); font-weight: 600; }
+
+      section { padding: 104px 0; }
+      .tinted { background: #f7f4ff; }
+      .section-head { display: grid; grid-template-columns: 0.7fr 1.3fr; gap: 50px; align-items: end; margin-bottom: 52px; }
+      h2 { margin: 0; font-size: clamp(2.4rem, 5vw, 4.5rem); }
+      .section-head p { max-width: 620px; margin: 0; color: var(--muted); font-size: 1.08rem; }
+      .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+      .step { min-height: 260px; padding: 30px; border: 1px solid var(--line); border-radius: 30px 30px 70px 30px; background: white; }
+      .step:nth-child(2) { border-radius: 70px 30px 30px 30px; }
+      .step:nth-child(3) { border-radius: 30px 70px 30px 30px; }
+      .number { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 48px; border-radius: 50%; color: white; background: var(--violet); font-weight: 800; }
+      h3 { margin: 0 0 12px; font-size: 1.45rem; }
+      .step p, .policy p { margin: 0; color: var(--muted); }
+
+      .promise { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; align-items: center; }
+      .promise-panel { padding: 54px; border-radius: 42px 90px 42px 42px; background: var(--ink); color: white; }
+      .promise-panel h2 { margin-bottom: 24px; }
+      .promise-panel p { color: rgba(255,255,255,0.73); font-size: 1.08rem; }
+      .checks { display: grid; gap: 18px; }
+      .check { display: flex; gap: 18px; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+      .check i { display: grid; flex: 0 0 38px; place-items: center; height: 38px; border-radius: 50%; background: var(--mint); font-style: normal; font-weight: 800; }
+      .check p { margin: 4px 0 0; color: var(--muted); }
+
+      .policies { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+      .policy { padding: 30px; border-top: 3px solid var(--violet); background: white; box-shadow: 0 18px 50px rgba(28, 24, 48, 0.06); }
+      .policy h3 { letter-spacing: -0.03em; }
+      .policy a { color: var(--violet-dark); font-weight: 700; }
+
+      .contact { text-align: center; padding-bottom: 120px; }
+      .contact-box { padding: 70px 28px; border-radius: 46px; background: var(--lavender); }
+      .contact-box p { max-width: 640px; margin: 20px auto 30px; color: var(--muted); }
+      footer { padding: 34px 0; border-top: 1px solid var(--line); color: var(--muted); }
+      footer .wrap { display: flex; justify-content: space-between; gap: 20px; }
+
+      @media (max-width: 820px) {
+        .nav-links a:not(.button) { display: none; }
+        .hero { min-height: auto; grid-template-columns: 1fr; gap: 24px; padding-top: 70px; }
+        .hero-art { min-height: 390px; }
+        .section-head, .promise { grid-template-columns: 1fr; gap: 28px; }
+        .steps, .policies { grid-template-columns: 1fr; }
+        section { padding: 76px 0; }
+      }
+      @media (max-width: 520px) {
+        .wrap { width: min(100% - 28px, 1160px); }
+        nav { min-height: 66px; }
+        .nav-links .button { min-height: 42px; padding: 0 16px; }
+        h1 { font-size: clamp(3rem, 16vw, 4.4rem); }
+        .hero-art { min-height: 330px; }
+        .ticket { inset: 13% 4% 11% 3%; padding: 28px; }
+        .promise-panel { padding: 36px 28px; }
+        footer .wrap { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav class="wrap" aria-label="Main navigation">
+        <a class="brand" href="#top">Event<span>Space</span></a>
+        <div class="nav-links">
+          <a href="#how-it-works">How it works</a>
+          <a href="#policies">Policies</a>
+          <a class="button" href="mailto:sophorourke2000@gmail.com">Contact us</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="top">
+      <div class="hero wrap">
+        <div>
+          <p class="eyebrow">An Irish event marketplace</p>
+          <h1>Find your next <em>great experience.</em></h1>
+          <p class="hero-copy">EventSpace brings event-goers and organisers together. Discover carefully reviewed local events, or create an event and sell tickets through one simple platform.</p>
+          <div class="actions">
+            <a class="button primary" href="#how-it-works">Discover EventSpace</a>
+            <a class="button" href="#organisers">For organisers</a>
+          </div>
+        </div>
+        <div class="hero-art" aria-label="Illustration of an EventSpace ticket">
+          <div class="shape one"></div><div class="shape two"></div><div class="shape three"></div>
+          <div class="ticket">
+            <small>EventSpace presents</small>
+            <strong>Make plans worth remembering.</strong>
+            <div class="ticket-row"><span>Verified listing</span><span>IRELAND</span></div>
+          </div>
+        </div>
+      </div>
+
+      <section id="how-it-works" class="tinted">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Events with a human touch.</h2>
+            <p>We are building a trusted place to browse, host and book experiences. Every listing is reviewed before publication so guests can book with clearer information and organisers can reach the right audience.</p>
+          </div>
+          <div class="steps">
+            <article class="step"><span class="number">1</span><h3>Organisers submit</h3><p>Create a detailed listing with dates, location, ticket options and event imagery.</p></article>
+            <article class="step"><span class="number">2</span><h3>We review</h3><p>EventSpace reviews submitted event information before a listing is made public.</p></article>
+            <article class="step"><span class="number">3</span><h3>Guests book</h3><p>Guests discover approved events and purchase tickets securely through Stripe.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="organisers">
+        <div class="wrap promise">
+          <div class="promise-panel">
+            <p class="eyebrow" style="color:#c9bbff">For event organisers</p>
+            <h2>A simpler way to fill the room.</h2>
+            <p>EventSpace provides event publishing, booking management and secure online ticket payments. Our platform fee is 4% of ticket sales processed through the platform.</p>
+          </div>
+          <div class="checks">
+            <div class="check"><i>✓</i><div><h3>Clear event pages</h3><p>Add descriptions, schedules, venue details and multiple images.</p></div></div>
+            <div class="check"><i>✓</i><div><h3>Reviewed listings</h3><p>Submissions are checked before going live, with revisions requested when needed.</p></div></div>
+            <div class="check"><i>✓</i><div><h3>Secure payments</h3><p>Ticket payments and organiser payouts are handled through Stripe.</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="policies" class="tinted">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Booking policies.</h2>
+            <p>EventSpace is currently preparing for launch. The following policies explain how bookings, cancellations and support will work when ticket sales begin.</p>
+          </div>
+          <div class="policies">
+            <article class="policy"><h3>Refunds</h3><p>Refund eligibility is set by the organiser and displayed with the event information. Guests can contact EventSpace support if a refund agreed under the stated policy has not been received.</p></article>
+            <article class="policy"><h3>Cancellations</h3><p>If an event is cancelled, ticket holders will be notified using their booking email and refunded to the original payment method. Processing times can vary by bank.</p></article>
+            <article class="policy"><h3>Questions or disputes</h3><p>For booking, event or payment support, email <a href="mailto:sophorourke2000@gmail.com">sophorourke2000@gmail.com</a>. Please include the event name and booking reference.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact">
+        <div class="wrap contact-box">
+          <p class="eyebrow">EventSpace support</p>
+          <h2>Let’s make something happen.</h2>
+          <p>We are preparing EventSpace for launch in Ireland. Organisers, guests and venue partners are welcome to get in touch.</p>
+          <a class="button primary" href="mailto:sophorourke2000@gmail.com">Email EventSpace</a>
+        </div>
+      </section>
+    </main>
+
+    <footer><div class="wrap"><strong>EventSpace</strong><span>Verified events. Real experiences. · Ireland · © 2026</span></div></footer>
+  </body>
+</html>
