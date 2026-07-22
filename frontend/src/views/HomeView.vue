@@ -12,9 +12,9 @@ const categories = [
 <template>
   <section class="hero shell">
     <div class="hero__content">
-      <p class="eyebrow">Verified events across Ireland</p>
+      <p class="eyebrow">Same events. Better value.</p>
       <h1>Find something worth <em>showing up for.</em></h1>
-      <p class="hero__copy">From intimate workshops to unforgettable nights out—discover trusted events or bring your own idea to life.</p>
+      <p class="hero__copy">Verified events across Ireland, fairer fees for organisers, and memorable experiences for everyone. Discover your next plan or bring your own idea to life.</p>
       <div class="button-row">
         <RouterLink class="button" to="/events">Explore events</RouterLink>
         <RouterLink class="button button--outline" to="/organiser/events/new">Host an event</RouterLink>

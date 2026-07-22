@@ -19,11 +19,12 @@ def create_app(test_config=None):
         SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", "sqlite:///eventspace.db"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         MAX_CONTENT_LENGTH=40 * 1024 * 1024,
-        UPLOAD_FOLDER=project_root / "uploads",
+        UPLOAD_FOLDER=Path(os.getenv("UPLOAD_FOLDER", project_root / "uploads")),
         STRIPE_PLATFORM_FEE_PERCENT=int(os.getenv("STRIPE_PLATFORM_FEE_PERCENT", "4")),
         STRIPE_SECRET_KEY=os.getenv("STRIPE_SECRET_KEY", ""),
         STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
         FRONTEND_URL=os.getenv("FRONTEND_URL", "http://localhost:5173"),
+        PUBLIC_URL=os.getenv("PUBLIC_URL", os.getenv("FRONTEND_URL", "http://localhost:5173")).rstrip("/"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production",
@@ -81,6 +82,42 @@ def create_app(test_config=None):
     @app.get("/uploads/<path:filename>")
     def uploaded_file(filename):
         return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+    @app.get("/robots.txt")
+    def robots():
+        return (
+            f"User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /organiser\n"
+            f"Sitemap: {app.config['PUBLIC_URL']}/sitemap.xml\n",
+            200,
+            {"Content-Type": "text/plain; charset=utf-8"},
+        )
+
+    @app.get("/sitemap.xml")
+    def sitemap():
+        from markupsafe import escape
+        from .models import Event, EventStatus
+
+        base = app.config["PUBLIC_URL"]
+        urls = [f"<url><loc>{escape(base)}/</loc><changefreq>weekly</changefreq></url>"]
+        urls.append(f"<url><loc>{escape(base)}/events</loc><changefreq>daily</changefreq></url>")
+        for event in Event.query.filter_by(status=EventStatus.APPROVED).all():
+            urls.append(
+                f"<url><loc>{escape(base)}/events/{escape(event.slug)}</loc>"
+                f"<lastmod>{event.updated_at.date().isoformat()}</lastmod></url>"
+            )
+        xml = '<?xml version="1.0" encoding="UTF-8"?>' + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join(urls) + "</urlset>"
+        return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+    frontend_dist = project_root / "frontend" / "dist"
+
+    @app.get("/", defaults={"path": ""})
+    @app.get("/<path:path>")
+    def frontend(path):
+        if frontend_dist.is_dir() and path and (frontend_dist / path).is_file():
+            return send_from_directory(frontend_dist, path)
+        if frontend_dist.is_dir():
+            return send_from_directory(frontend_dist, "index.html")
+        return jsonify({"message": "EventSpace frontend has not been built."}), 404
 
     from .commands import register_commands
     register_commands(app)

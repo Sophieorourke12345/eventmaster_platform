@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, euro, eventDate } from '../lib'
 import { useAuthStore } from '../stores/auth'
@@ -11,9 +11,48 @@ const event = ref(null)
 const error = ref('')
 const quantity = ref(1)
 const checkoutBusy = ref(false)
+
+function setEventSeo(item) {
+  document.title = `${item.title} in ${item.county} | EventSpace Ireland`
+  let description = document.querySelector('meta[name="description"]')
+  if (description) description.content = `${item.description.slice(0, 145)} — tickets on EventSpace Ireland.`
+  const schema = document.createElement('script')
+  schema.id = 'event-structured-data'
+  schema.type = 'application/ld+json'
+  schema.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: item.title,
+    startDate: item.startsAt,
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    description: item.description,
+    image: item.images?.map((image) => new URL(image.url, window.location.origin).href),
+    location: {
+      '@type': 'Place',
+      name: item.venue,
+      address: { '@type': 'PostalAddress', addressLocality: item.county, addressCountry: 'IE' },
+    },
+    organizer: { '@type': 'Organization', name: item.organiser.name, url: window.location.origin },
+    offers: {
+      '@type': 'Offer',
+      url: window.location.href,
+      price: (item.ticketPriceCents / 100).toFixed(2),
+      priceCurrency: 'EUR',
+      availability: item.soldOut ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+    },
+  })
+  document.getElementById(schema.id)?.remove()
+  document.head.appendChild(schema)
+}
+
 onMounted(async () => {
-  try { event.value = (await api(`/events/${route.params.slug}`)).event }
+  try { event.value = (await api(`/events/${route.params.slug}`)).event; setEventSeo(event.value) }
   catch (err) { error.value = err.message }
+})
+onBeforeUnmount(() => {
+  document.getElementById('event-structured-data')?.remove()
+  document.title = 'EventSpace Ireland — Same events. Better value.'
 })
 
 async function checkout() {

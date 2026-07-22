@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: eventspace-ireland
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/health
+    disk:
+      name: eventspace-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////var/data/eventspace.db
+      - key: UPLOAD_FOLDER
+        value: /var/data/uploads
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://eventspace-ireland.onrender.com
+      - key: PUBLIC_URL
+        value: https://eventspace-ireland.onrender.com
+      - key: STRIPE_PLATFORM_FEE_PERCENT
+        value: "4"
+      - key: ADMIN_EMAIL
+        value: sophorourke2000@gmail.com
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false

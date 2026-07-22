@@ -72,3 +72,13 @@ cd backend
 cd ../frontend
 npm run build
 ```
+
+## Production deployment
+
+The repository includes a Docker-based Render Blueprint. It builds the Vue app, serves it from Flask/Gunicorn, runs database migrations at startup, and stores SQLite data plus event uploads on an encrypted persistent disk.
+
+1. In Render, create a Blueprint from this GitHub repository.
+2. Add the Stripe and mail secrets requested by `render.yaml`.
+3. After deployment, set `FRONTEND_URL` and `PUBLIC_URL` to the final HTTPS domain.
+4. Register `/api/payments/webhook` in Stripe and subscribe to `checkout.session.completed`, `checkout.session.expired`, and `account.updated`.
+5. Add the final domain to Google Search Console and submit `/sitemap.xml`.
