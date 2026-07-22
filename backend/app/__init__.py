@@ -21,6 +21,7 @@ def create_app(test_config=None):
         MAX_CONTENT_LENGTH=40 * 1024 * 1024,
         UPLOAD_FOLDER=Path(os.getenv("UPLOAD_FOLDER", project_root / "uploads")),
         STRIPE_PLATFORM_FEE_PERCENT=int(os.getenv("STRIPE_PLATFORM_FEE_PERCENT", "4")),
+        BOOKING_FEE_CENTS=int(os.getenv("BOOKING_FEE_CENTS", "100")),
         STRIPE_SECRET_KEY=os.getenv("STRIPE_SECRET_KEY", ""),
         STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
         FRONTEND_URL=os.getenv("FRONTEND_URL", "http://localhost:5173"),

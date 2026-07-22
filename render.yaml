@@ -22,6 +22,8 @@ services:
         value: https://eventspace-ireland.onrender.com
       - key: STRIPE_PLATFORM_FEE_PERCENT
         value: "4"
+      - key: BOOKING_FEE_CENTS
+        value: "100"
       - key: ADMIN_EMAIL
         value: sophorourke2000@gmail.com
       - key: STRIPE_SECRET_KEY

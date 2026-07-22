@@ -126,7 +126,8 @@ class EventSpaceWorkflowTests(unittest.TestCase):
 
         with self.app.app_context():
             order = Order.query.one()
-            self.assertEqual(order.platform_fee_cents, 200)
+            self.assertEqual(order.total_cents, 5100)
+            self.assertEqual(order.platform_fee_cents, 300)
             self.assertEqual(order.status, OrderStatus.PENDING)
 
         stripe_event = {"type": "checkout.session.completed", "data": {"object": {"id": "cs_test_123", "payment_status": "paid", "payment_intent": "pi_test"}}}

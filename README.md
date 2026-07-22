@@ -43,7 +43,7 @@ The Vite development server proxies `/api` and `/uploads` to Flask on port 5000.
 
 ## Payment rule
 
-Ticket prices are stored in cents. For each successful sale, EventSpace records a 4% platform fee. Stripe processing fees are separate and the final fee-bearing arrangement must be confirmed before production launch.
+Ticket prices are stored in cents. For each successful order, EventSpace receives a 4% organiser commission plus one transparent €1 customer booking fee. The booking fee is charged once per order, not per ticket. Stripe processing fees are deducted from the platform balance, and EventSpace retains the remainder. Full event-cancellation refunds return the ticket subtotal and booking fee and reverse the organiser transfer and application fee.
 
 ## Stripe test mode
 

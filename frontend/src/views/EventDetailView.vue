@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, euro, eventDate } from '../lib'
 import { useAuthStore } from '../stores/auth'
@@ -11,6 +11,7 @@ const event = ref(null)
 const error = ref('')
 const quantity = ref(1)
 const checkoutBusy = ref(false)
+const orderTotal = computed(() => event.value ? event.value.ticketPriceCents * quantity.value + 100 : 0)
 
 function setEventSeo(item) {
   document.title = `${item.title} in ${item.county} | EventSpace Ireland`
@@ -37,7 +38,7 @@ function setEventSeo(item) {
     offers: {
       '@type': 'Offer',
       url: window.location.href,
-      price: (item.ticketPriceCents / 100).toFixed(2),
+      price: ((item.ticketPriceCents + 100) / 100).toFixed(2),
       priceCurrency: 'EUR',
       availability: item.soldOut ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
     },
@@ -73,7 +74,7 @@ async function checkout() {
   <section v-else-if="event" class="detail shell">
     <div class="detail__media"><div class="detail__image"><img v-if="event.images?.[0]" :src="event.images[0].url" :alt="event.images[0].alt" /><span v-else>{{ event.category }}</span></div><div v-if="event.images?.length > 1" class="detail__gallery"><img v-for="image in event.images.slice(1)" :key="image.id" :src="image.url" :alt="image.alt" /></div></div>
     <div class="detail__content"><p class="eyebrow">Verified event · {{ event.category }}</p><h1>{{ event.title }}</h1><dl><div><dt>When</dt><dd>{{ eventDate(event.startsAt) }}</dd></div><div><dt>Where</dt><dd>{{ event.venue }}, {{ event.county }}</dd></div><div><dt>Hosted by</dt><dd>{{ event.organiser.name }}</dd></div></dl><p class="detail__description">{{ event.description }}</p></div>
-    <aside class="ticket-box"><p>Tickets from</p><strong>{{ euro(event.ticketPriceCents) }}</strong><span>{{ event.ticketsRemaining }} tickets remaining</span><label v-if="!event.soldOut">Quantity<select v-model.number="quantity"><option v-for="number in Math.min(event.ticketsRemaining, 10)" :key="number" :value="number">{{ number }}</option></select></label><p v-if="error" class="form-error">{{ error }}</p><button class="button" :disabled="event.soldOut || checkoutBusy" @click="checkout">{{ event.soldOut ? 'Sold out' : checkoutBusy ? 'Opening checkout…' : 'Get tickets' }}</button><small>Secure checkout powered by Stripe</small></aside>
+    <aside class="ticket-box"><p>Tickets from</p><strong>{{ euro(event.ticketPriceCents) }}</strong><span>{{ event.ticketsRemaining }} tickets remaining</span><label v-if="!event.soldOut">Quantity<select v-model.number="quantity"><option v-for="number in Math.min(event.ticketsRemaining, 10)" :key="number" :value="number">{{ number }}</option></select></label><div v-if="!event.soldOut" class="checkout-summary"><span>Tickets</span><strong>{{ euro(event.ticketPriceCents * quantity) }}</strong><span>Booking fee</span><strong>€1.00</strong><span>Total</span><strong>{{ euro(orderTotal) }}</strong></div><p v-if="error" class="form-error">{{ error }}</p><button class="button" :disabled="event.soldOut || checkoutBusy" @click="checkout">{{ event.soldOut ? 'Sold out' : checkoutBusy ? 'Opening checkout…' : `Pay ${euro(orderTotal)}` }}</button><small>One €1 booking fee per order · Secure checkout powered by Stripe</small></aside>
   </section>
   <p v-else class="state-message">Loading event…</p>
 </template>

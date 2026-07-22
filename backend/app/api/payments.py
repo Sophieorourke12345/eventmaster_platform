@@ -144,9 +144,11 @@ def create_checkout():
     if not event.organiser.stripe_charges_enabled:
         return {"message": "Ticket sales will open when the organiser finishes payout verification."}, 409
 
-    total_cents = event.ticket_price_cents * quantity
+    ticket_subtotal_cents = event.ticket_price_cents * quantity
+    booking_fee_cents = current_app.config["BOOKING_FEE_CENTS"]
+    total_cents = ticket_subtotal_cents + booking_fee_cents
     fee_percent = current_app.config["STRIPE_PLATFORM_FEE_PERCENT"]
-    platform_fee_cents = (total_cents * fee_percent + 50) // 100
+    platform_fee_cents = (ticket_subtotal_cents * fee_percent + 50) // 100 + booking_fee_cents
     expires_at = utc_now() + timedelta(minutes=30)
     order = Order(
         buyer=current_user,
@@ -165,14 +167,24 @@ def create_checkout():
         session = stripe.checkout.Session.create(
             mode="payment",
             customer_email=current_user.email,
-            line_items=[{
-                "price_data": {
-                    "currency": "eur",
-                    "unit_amount": event.ticket_price_cents,
-                    "product_data": {"name": event.title, "description": f"{event.venue}, {event.county}"},
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "eur",
+                        "unit_amount": event.ticket_price_cents,
+                        "product_data": {"name": event.title, "description": f"{event.venue}, {event.county}"},
+                    },
+                    "quantity": quantity,
                 },
-                "quantity": quantity,
-            }],
+                {
+                    "price_data": {
+                        "currency": "eur",
+                        "unit_amount": booking_fee_cents,
+                        "product_data": {"name": "EventSpace booking fee", "description": "One flat fee per order"},
+                    },
+                    "quantity": 1,
+                },
+            ],
             payment_intent_data={
                 "application_fee_amount": platform_fee_cents,
                 "transfer_data": {"destination": event.organiser.stripe_account_id},
