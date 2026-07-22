@@ -19,7 +19,8 @@ export async function api(path, options = {}) {
     ...options,
   })
   if (response.status === 204) return null
-  const body = await response.json()
+  const type = response.headers.get('content-type') || ''
+  const body = type.includes('application/json') ? await response.json() : { message: 'The server returned an unexpected response. Please try again.' }
   if (!response.ok) throw new Error(body.message || 'Something went wrong.')
   return body
 }

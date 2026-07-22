@@ -21,6 +21,9 @@ class EventSpaceWorkflowTests(unittest.TestCase):
             "STRIPE_SECRET_KEY": "sk_test_fake",
             "STRIPE_WEBHOOK_SECRET": "whsec_fake",
             "UPLOAD_FOLDER": self.uploads.name,
+            "ADMIN_EMAIL": "",
+            "MAIL_USERNAME": "",
+            "MAIL_PASSWORD": "",
         })
         with self.app.app_context():
             db.create_all()

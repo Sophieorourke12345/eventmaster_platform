@@ -34,24 +34,38 @@ def connect_onboard():
     if not configure_stripe():
         return {"message": "Stripe test mode is not configured yet."}, 503
 
-    if not current_user.stripe_account_id:
-        account = stripe.Account.create(
-            type="express",
-            country="IE",
-            email=current_user.email,
-            capabilities={"card_payments": {"requested": True}, "transfers": {"requested": True}},
-            metadata={"eventspace_user_id": str(current_user.id)},
-        )
-        current_user.stripe_account_id = account.id
-        db.session.commit()
+    try:
+        if not current_user.stripe_account_id:
+            account = stripe.Account.create(
+                type="express",
+                country="IE",
+                email=current_user.email,
+                capabilities={"card_payments": {"requested": True}, "transfers": {"requested": True}},
+                metadata={"eventspace_user_id": str(current_user.id)},
+            )
+            current_user.stripe_account_id = account.id
+            db.session.commit()
 
-    frontend = current_app.config["FRONTEND_URL"].rstrip("/")
-    link = stripe.AccountLink.create(
-        account=current_user.stripe_account_id,
-        refresh_url=f"{frontend}/organiser?stripe=refresh",
-        return_url=f"{frontend}/organiser?stripe=return",
-        type="account_onboarding",
-    )
+        frontend = current_app.config["FRONTEND_URL"].rstrip("/")
+        link = stripe.AccountLink.create(
+            account=current_user.stripe_account_id,
+            refresh_url=f"{frontend}/organiser?stripe=refresh",
+            return_url=f"{frontend}/organiser?stripe=return",
+            type="account_onboarding",
+        )
+    except stripe.InvalidRequestError as error:
+        db.session.rollback()
+        if "signed up for Connect" in str(error):
+            return {
+                "message": "Finish the one-time Stripe Connect platform setup, then try again.",
+                "setupUrl": "https://dashboard.stripe.com/connect",
+            }, 409
+        current_app.logger.warning("Stripe rejected connected-account onboarding: %s", error.user_message)
+        return {"message": "Stripe could not start organiser onboarding. Check your Connect settings."}, 400
+    except stripe.StripeError:
+        db.session.rollback()
+        current_app.logger.exception("Stripe organiser onboarding failed")
+        return {"message": "Stripe onboarding is temporarily unavailable. Please try again."}, 502
     return {"url": link.url}
 
 
