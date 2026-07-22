@@ -12,7 +12,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import or_
 
 from ..extensions import db
-from ..models import Event, EventImage, EventStatus, UserRole
+from ..models import Event, EventImage, EventStatus, UserRole, utc_now
 from ..notifications import notify_event_submission, send_email
 
 events_bp = Blueprint("events", __name__)
@@ -91,7 +91,9 @@ def date_window(value):
 
 @events_bp.get("")
 def list_events():
-    query = Event.query.filter_by(status=EventStatus.APPROVED)
+    query = Event.query.filter_by(status=EventStatus.APPROVED).filter(
+        Event.starts_at >= utc_now() - timedelta(days=1)
+    )
     search = request.args.get("q", "").strip()
     if search:
         term = f"%{search}%"
@@ -123,6 +125,8 @@ def list_events():
 @events_bp.get("/<slug>")
 def event_detail(slug):
     event = Event.query.filter_by(slug=slug, status=EventStatus.APPROVED).first_or_404()
+    if event.is_expired:
+        return {"message": "This event has ended."}, 410
     return {"event": event.to_dict()}
 
 
@@ -232,8 +236,8 @@ def update_event(event_id):
     event = db.get_or_404(Event, event_id)
     if event.organiser_id != current_user.id and current_user.role != UserRole.ADMIN:
         return {"message": "You do not have permission to edit this event."}, 403
-    if event.status == EventStatus.APPROVED and current_user.role != UserRole.ADMIN:
-        return {"message": "Contact EventSpace before editing a live event."}, 409
+    if event.status == EventStatus.APPROVED and event.tickets_sold and current_user.role != UserRole.ADMIN:
+        return {"message": "A live event with ticket sales cannot be edited. Contact EventSpace support."}, 409
     try:
         fields = parse_event_payload(request.get_json(silent=True) or {})
     except (TypeError, ValueError) as exc:
@@ -244,6 +248,25 @@ def update_event(event_id):
     event.rejection_reason = None
     db.session.commit()
     return {"event": event.to_dict(include_private=True)}
+
+
+@events_bp.delete("/<int:event_id>")
+@login_required
+def remove_event(event_id):
+    event = db.get_or_404(Event, event_id)
+    is_admin = current_user.role == UserRole.ADMIN
+    if event.organiser_id != current_user.id and not is_admin:
+        return {"message": "You do not have permission to remove this event."}, 403
+    if event.orders.count():
+        return {"message": "Events with paid tickets must use the cancellation and refund workflow."}, 409
+
+    filenames = [image.filename for image in event.images]
+    db.session.delete(event)
+    db.session.commit()
+    for filename in filenames:
+        path = Path(current_app.config["UPLOAD_FOLDER"]) / filename
+        path.unlink(missing_ok=True)
+    return "", 204
 
 
 @events_bp.get("/admin/pending")

@@ -33,6 +33,14 @@ async function decide(decision) {
   finally { busy.value = false }
 }
 
+async function removeSelected() {
+  if (!window.confirm(`Permanently delete “${selected.value.title}”?`)) return
+  busy.value = true; error.value = ''
+  try { await api(`/events/${selected.value.id}`, { method: 'DELETE' }); selected.value = null; await load() }
+  catch (err) { error.value = err.message }
+  finally { busy.value = false }
+}
+
 onMounted(load)
 </script>
 
@@ -60,7 +68,7 @@ onMounted(load)
       <div v-if="selected.images.length" class="review-gallery"><img v-for="image in selected.images" :key="image.id" :src="image.url" :alt="image.alt" /></div><p v-else class="no-images">No event images were submitted.</p>
       <div class="review-description"><strong>Description</strong><p>{{ selected.description }}</p></div>
       <label>Feedback for organiser<textarea v-model="reason" rows="4" placeholder="Required when rejecting an event"></textarea></label>
-      <div class="button-row"><button class="button approve-button" :disabled="busy" @click="decide('approved')">Approve and publish</button><button class="button reject-button" :disabled="busy" @click="decide('rejected')">Reject with reason</button></div>
+      <div v-if="selected.status === 'pending'" class="button-row"><button class="button approve-button" :disabled="busy" @click="decide('approved')">Approve and publish</button><button class="button reject-button" :disabled="busy" @click="decide('rejected')">Reject with reason</button></div><button v-if="selected.ticketsSold === 0" class="danger-link modal-delete" type="button" :disabled="busy" @click="removeSelected">Delete event permanently</button>
     </section>
   </div>
 </template>

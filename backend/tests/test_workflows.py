@@ -72,6 +72,26 @@ class EventSpaceWorkflowTests(unittest.TestCase):
         self.assertEqual(decision.status_code, 200)
         results = self.client.get("/api/events?category=Music&county=Cork&minPrice=20&maxPrice=30").get_json()["events"]
         self.assertEqual(len(results), 1)
+        self.assertEqual(self.request("DELETE", f"/api/events/{event_id}").status_code, 204)
+
+    def test_event_disappears_from_discovery_one_day_after_start(self):
+        with self.app.app_context():
+            organiser = User(
+                first_name="Past", last_name="Host", email="past@example.com",
+                password_hash=bcrypt.generate_password_hash("password123").decode(),
+                role=UserRole.ORGANISER,
+            )
+            db.session.add(organiser); db.session.flush()
+            db.session.add(Event(
+                title="Past Event", slug="past-event", description="Already finished",
+                venue="Old Venue", county="Cork",
+                starts_at=datetime.now(timezone.utc) - timedelta(days=2), category="Music",
+                ticket_price_cents=1000, ticket_capacity=20,
+                status=EventStatus.APPROVED, organiser=organiser,
+            ))
+            db.session.commit()
+        self.assertEqual(self.client.get("/api/events").get_json()["events"], [])
+        self.assertEqual(self.client.get("/api/events/past-event").status_code, 410)
 
     def test_stripe_webhook_issues_tickets_and_records_four_percent_fee(self):
         with self.app.app_context():

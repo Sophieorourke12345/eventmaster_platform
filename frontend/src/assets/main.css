@@ -128,6 +128,7 @@ input:focus, select:focus, textarea:focus { border-color: rgba(255,107,53,.65); 
 .rejection-note { margin-top: 28px; padding: 20px; display: grid; gap: 6px; background: #ffe7ed; }
 .rejection-text { display: block; margin-top: 10px; color: #9e2947; }
 .dashboard-actions { display: flex; gap: 18px; }
+.dashboard-actions a, .danger-link { border: 0; background: none; color: var(--ink); font-weight: 800; text-decoration: none; cursor: pointer; }.danger-link { color: #a62d4b; }.modal-delete { margin-top: 20px; }.status--expired { background: #e5e2dc; color: #595650; }
 .admin-layout { padding-bottom: 110px; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 30px; }
 .stat-grid button { padding: 22px; display: grid; gap: 4px; text-align: left; border: 1px solid #ebe8e2; border-radius: 20px; background: rgba(255,255,255,.75); cursor: pointer; transition: transform .2s, box-shadow .2s; }

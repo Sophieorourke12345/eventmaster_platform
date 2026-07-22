@@ -24,6 +24,13 @@ async function connectStripe() {
   } catch (err) { error.value = err.message; connecting.value = false }
 }
 
+async function removeEvent(event) {
+  if (!window.confirm(`Delete “${event.title}”? This cannot be undone.`)) return
+  error.value = ''
+  try { await api(`/events/${event.id}`, { method: 'DELETE' }); await load() }
+  catch (err) { error.value = err.message }
+}
+
 onMounted(load)
 </script>
 
@@ -35,8 +42,7 @@ onMounted(load)
       <div><span class="fee-badge">You receive 96%*</span><button v-if="!stripeStatus?.onboarded" class="button" :disabled="connecting" @click="connectStripe">{{ connecting ? 'Opening Stripe…' : stripeStatus?.accountCreated ? 'Continue verification' : 'Connect with Stripe' }}</button><span v-else class="payout-ready">✓ Payments enabled</span><small>*Stripe processing fees are separate.</small></div>
     </div>
     <p v-if="error" class="state-message state-message--error">{{ error }}</p>
-    <div v-if="events.length" class="dashboard-list"><article v-for="event in events" :key="event.id"><div><span :class="`status status--${event.status}`">{{ event.status }}</span><h2>{{ event.title }}</h2><p>{{ eventDate(event.startsAt) }} · {{ event.ticketsRemaining }} tickets remaining</p><small v-if="event.rejectionReason" class="rejection-text">Reviewer: {{ event.rejectionReason }}</small></div><div class="dashboard-actions"><RouterLink v-if="event.status === 'approved'" :to="`/events/${event.slug}`">View live →</RouterLink><RouterLink v-else :to="`/organiser/events/${event.id}/edit`">{{ event.status === 'rejected' ? 'Revise event →' : 'Edit submission →' }}</RouterLink></div></article></div>
+    <div v-if="events.length" class="dashboard-list"><article v-for="event in events" :key="event.id"><div><span :class="`status status--${event.expired ? 'expired' : event.status}`">{{ event.expired ? 'past event' : event.status }}</span><h2>{{ event.title }}</h2><p>{{ eventDate(event.startsAt) }} · {{ event.ticketsRemaining }} tickets remaining</p><small v-if="event.rejectionReason" class="rejection-text">Reviewer: {{ event.rejectionReason }}</small></div><div class="dashboard-actions"><RouterLink v-if="event.status === 'approved' && !event.expired" :to="`/events/${event.slug}`">View live</RouterLink><RouterLink v-if="event.ticketsSold === 0" :to="`/organiser/events/${event.id}/edit`">{{ event.status === 'rejected' ? 'Revise' : 'Edit' }}</RouterLink><button v-if="event.ticketsSold === 0" class="danger-link" type="button" @click="removeEvent(event)">Delete</button></div></article></div>
     <div v-else class="empty-state"><span>✦</span><h2>Your first event starts here</h2><p>Create a listing and submit it for verification.</p><RouterLink class="button" to="/organiser/events/new">Host an event</RouterLink></div>
   </section>
 </template>
-

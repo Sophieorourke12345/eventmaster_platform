@@ -1,6 +1,6 @@
 import enum
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask_login import UserMixin
 
@@ -99,6 +99,13 @@ class Event(db.Model):
         ).with_entities(db.func.coalesce(db.func.sum(Order.quantity), 0)).scalar()
         return max(self.ticket_capacity - self.tickets_sold - int(reserved or 0), 0)
 
+    @property
+    def is_expired(self):
+        starts_at = self.starts_at
+        if starts_at.tzinfo is None:
+            starts_at = starts_at.replace(tzinfo=timezone.utc)
+        return starts_at < utc_now() - timedelta(days=1)
+
     def to_dict(self, include_private=False):
         data = {
             "id": self.id,
@@ -112,7 +119,9 @@ class Event(db.Model):
             "ticketPriceCents": self.ticket_price_cents,
             "ticketCapacity": self.ticket_capacity,
             "ticketsRemaining": self.tickets_remaining,
+            "ticketsSold": self.tickets_sold,
             "soldOut": self.tickets_remaining == 0,
+            "expired": self.is_expired,
             "status": self.status.value,
             "images": [image.to_dict() for image in self.images],
             "organiser": {"id": self.organiser.id, "name": self.organiser.full_name},
