@@ -41,6 +41,16 @@ async function removeSelected() {
   finally { busy.value = false }
 }
 
+async function cancelSelected() {
+  if (!window.confirm(`Cancel “${selected.value.title}” and refund every paid order? This cannot be undone.`)) return
+  busy.value = true; error.value = ''
+  try {
+    const result = await api(`/payments/events/${selected.value.id}/cancel`, { method: 'POST', body: '{}' })
+    window.alert(result.message); selected.value = null; await load()
+  } catch (err) { error.value = err.message; await load() }
+  finally { busy.value = false }
+}
+
 onMounted(load)
 </script>
 
@@ -68,7 +78,7 @@ onMounted(load)
       <div v-if="selected.images.length" class="review-gallery"><img v-for="image in selected.images" :key="image.id" :src="image.url" :alt="image.alt" /></div><p v-else class="no-images">No event images were submitted.</p>
       <div class="review-description"><strong>Description</strong><p>{{ selected.description }}</p></div>
       <label>Feedback for organiser<textarea v-model="reason" rows="4" placeholder="Required when rejecting an event"></textarea></label>
-      <div v-if="selected.status === 'pending'" class="button-row"><button class="button approve-button" :disabled="busy" @click="decide('approved')">Approve and publish</button><button class="button reject-button" :disabled="busy" @click="decide('rejected')">Reject with reason</button></div><button v-if="selected.ticketsSold === 0" class="danger-link modal-delete" type="button" :disabled="busy" @click="removeSelected">Delete event permanently</button>
+      <div v-if="selected.status === 'pending'" class="button-row"><button class="button approve-button" :disabled="busy" @click="decide('approved')">Approve and publish</button><button class="button reject-button" :disabled="busy" @click="decide('rejected')">Reject with reason</button></div><button v-if="selected.status === 'approved'" class="button reject-button modal-delete" type="button" :disabled="busy" @click="cancelSelected">Cancel event & refund buyers</button><button v-if="selected.ticketsSold === 0 && selected.status !== 'approved' && selected.status !== 'cancelled'" class="danger-link modal-delete" type="button" :disabled="busy" @click="removeSelected">Delete event permanently</button>
     </section>
   </div>
 </template>

@@ -153,6 +153,25 @@ class EventSpaceWorkflowTests(unittest.TestCase):
         })
         self.assertEqual(duplicate.get_json()["status"], "already_checked_in")
 
+        with patch("app.api.payments.stripe.Refund.create", return_value=SimpleNamespace(id="re_test")) as create_refund:
+            cancelled = self.request("POST", f"/api/payments/events/{event_id}/cancel", json={})
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.get_json()["refundedOrders"], 1)
+        create_refund.assert_called_once_with(
+            payment_intent="pi_test",
+            reverse_transfer=True,
+            refund_application_fee=True,
+            metadata={"eventspace_order_id": "1", "reason": "event_cancelled"},
+            idempotency_key="eventspace-event-cancel-order-1",
+        )
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Event, event_id).status, EventStatus.CANCELLED)
+            self.assertEqual(Order.query.one().status, OrderStatus.REFUNDED)
+        invalid = self.request("POST", "/api/payments/check-in", json={
+            "verificationCode": verification_code, "eventId": event_id,
+        })
+        self.assertEqual(invalid.status_code, 409)
+
 
 if __name__ == "__main__":
     unittest.main()

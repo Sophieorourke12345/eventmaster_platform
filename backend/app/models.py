@@ -128,6 +128,7 @@ class Event(db.Model):
         }
         if include_private:
             data["rejectionReason"] = self.rejection_reason
+            data["refundsOutstanding"] = self.orders.filter_by(status=OrderStatus.PAID).count() if self.status == EventStatus.CANCELLED else 0
         return data
 
 

@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 from ..extensions import db
 from ..extensions import csrf
 from ..models import Event, EventStatus, Order, OrderStatus, Ticket, User, UserRole, utc_now
+from ..notifications import send_email
 
 payments_bp = Blueprint("payments", __name__)
 
@@ -21,6 +22,25 @@ def fulfil_paid_order(order, payment_intent_id=None):
     for _ in range(missing):
         db.session.add(Ticket(event=order.event, order=order))
     db.session.commit()
+
+
+def refund_paid_order(order):
+    """Refund a destination charge and recover both transfer and app fee."""
+    payment_intent = order.stripe_payment_intent_id
+    if not payment_intent and order.stripe_checkout_session_id:
+        session = stripe.checkout.Session.retrieve(order.stripe_checkout_session_id)
+        payment_intent = session.payment_intent
+    if not payment_intent:
+        raise stripe.InvalidRequestError("The paid order has no Stripe payment reference.", None)
+    refund = stripe.Refund.create(
+        payment_intent=payment_intent,
+        reverse_transfer=True,
+        refund_application_fee=True,
+        metadata={"eventspace_order_id": str(order.id), "reason": "event_cancelled"},
+        idempotency_key=f"eventspace-event-cancel-order-{order.id}",
+    )
+    order.status = OrderStatus.REFUNDED
+    return refund
 
 
 def configure_stripe():
@@ -178,15 +198,78 @@ def create_checkout():
 def my_tickets():
     tickets = (
         Ticket.query.join(Order)
-        .filter(Order.buyer_id == current_user.id, Order.status == OrderStatus.PAID)
+        .filter(Order.buyer_id == current_user.id, Order.status.in_((OrderStatus.PAID, OrderStatus.REFUNDED)))
         .order_by(Ticket.id.desc()).all()
     )
     return {"tickets": [{
         "id": ticket.id,
         "verificationCode": ticket.verification_code,
         "checkedInAt": ticket.checked_in_at.isoformat() if ticket.checked_in_at else None,
+        "orderStatus": ticket.order.status.value,
         "event": ticket.event.to_dict(),
     } for ticket in tickets]}
+
+
+@payments_bp.post("/events/<int:event_id>/cancel")
+@login_required
+def cancel_event_and_refund(event_id):
+    event = db.get_or_404(Event, event_id)
+    if event.organiser_id != current_user.id and current_user.role != UserRole.ADMIN:
+        return {"message": "You do not have permission to cancel this event."}, 403
+    if event.status == EventStatus.CANCELLED and not event.orders.filter_by(status=OrderStatus.PAID).count():
+        return {"message": "This event is already cancelled and all payments are refunded.", "refundedOrders": 0}
+    if event.status not in (EventStatus.APPROVED, EventStatus.CANCELLED):
+        return {"message": "Only a live event can use the cancellation and refund workflow."}, 409
+
+    paid_orders = event.orders.filter_by(status=OrderStatus.PAID).all()
+    if paid_orders and not configure_stripe():
+        return {"message": "Stripe must be configured before paid tickets can be refunded."}, 503
+
+    # Remove the listing immediately, preventing new checkout sessions while refunds run.
+    event.status = EventStatus.CANCELLED
+    db.session.commit()
+
+    for order in event.orders.filter_by(status=OrderStatus.PENDING).all():
+        if order.stripe_checkout_session_id:
+            try:
+                stripe.checkout.Session.expire(order.stripe_checkout_session_id)
+            except stripe.StripeError:
+                current_app.logger.warning("Could not expire checkout session for order %s", order.id)
+        order.status = OrderStatus.FAILED
+    db.session.commit()
+
+    refunded = []
+    failures = []
+    for order in paid_orders:
+        try:
+            refund_paid_order(order)
+            db.session.commit()
+            refunded.append(order)
+        except stripe.StripeError as error:
+            db.session.rollback()
+            failures.append({"orderId": order.id, "message": error.user_message or "Stripe rejected the refund."})
+
+    for order in refunded:
+        try:
+            amount = f"€{order.total_cents / 100:.2f}"
+            send_email(
+                order.buyer.email,
+                f"Event cancelled and refund issued: {event.title}",
+                f"{event.title} has been cancelled. Your {amount} refund was issued to the original payment method. Your ticket is no longer valid. Banks can take several business days to display a refund.",
+            )
+        except Exception:
+            current_app.logger.exception("Cancellation email failed for order %s", order.id)
+
+    if failures:
+        return {
+            "message": f"The event is cancelled. {len(refunded)} order(s) were refunded, but {len(failures)} require another attempt.",
+            "refundedOrders": len(refunded),
+            "failedRefunds": failures,
+        }, 502
+    return {
+        "message": f"Event cancelled and {len(refunded)} paid order(s) refunded.",
+        "refundedOrders": len(refunded),
+    }
 
 
 @payments_bp.post("/checkout/confirm")
@@ -255,6 +338,8 @@ def check_in_ticket():
         return {"message": "This QR code is not a valid EventSpace ticket."}, 404
     if current_user.role != UserRole.ADMIN and ticket.event.organiser_id != current_user.id:
         return {"message": "This ticket belongs to another organiser's event."}, 403
+    if ticket.order.status != OrderStatus.PAID or ticket.event.status == EventStatus.CANCELLED:
+        return {"message": "This ticket was cancelled or refunded and is no longer valid."}, 409
     try:
         expected_event_id = int(data.get("eventId")) if data.get("eventId") else None
     except (TypeError, ValueError):
@@ -302,8 +387,14 @@ def stripe_webhook():
     stripe_object = event["data"]["object"]
     if event["type"] == "checkout.session.completed" and stripe_object.get("payment_status") == "paid":
         order = Order.query.filter_by(stripe_checkout_session_id=stripe_object["id"]).first()
-        if order and order.status == OrderStatus.PENDING:
+        if order and order.status in (OrderStatus.PENDING, OrderStatus.FAILED):
             fulfil_paid_order(order, stripe_object.get("payment_intent"))
+            if order.event.status == EventStatus.CANCELLED:
+                try:
+                    refund_paid_order(order)
+                    db.session.commit()
+                except stripe.StripeError:
+                    current_app.logger.exception("Urgent: refund failed for late completed order %s", order.id)
     elif event["type"] == "checkout.session.expired":
         order = Order.query.filter_by(stripe_checkout_session_id=stripe_object["id"]).first()
         if order and order.status == OrderStatus.PENDING:
