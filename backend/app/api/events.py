@@ -1,14 +1,19 @@
 import re
+import uuid
+from io import BytesIO
+from pathlib import Path
 from datetime import datetime, time, timedelta, timezone
 from functools import wraps
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, request
+from flask import Blueprint, current_app, request
 from flask_login import current_user, login_required
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import or_
 
 from ..extensions import db
-from ..models import Event, EventStatus, UserRole
+from ..models import Event, EventImage, EventStatus, UserRole
+from ..notifications import notify_event_submission, send_email
 
 events_bp = Blueprint("events", __name__)
 
@@ -135,11 +140,83 @@ def create_event():
         **fields,
         slug=unique_slug(fields["title"]),
         organiser=current_user,
-        status=EventStatus.PENDING,
+        status=EventStatus.DRAFT,
     )
     db.session.add(event)
     db.session.commit()
     return {"event": event.to_dict(include_private=True)}, 201
+
+
+@events_bp.post("/<int:event_id>/images")
+@login_required
+def upload_event_images(event_id):
+    event = db.get_or_404(Event, event_id)
+    if event.organiser_id != current_user.id and current_user.role != UserRole.ADMIN:
+        return {"message": "You do not have permission to edit this event."}, 403
+    if event.status == EventStatus.APPROVED:
+        return {"message": "Contact EventSpace before changing images on a live event."}, 409
+
+    files = [item for item in request.files.getlist("images") if item.filename]
+    remaining_slots = 6 - len(event.images)
+    if not files:
+        return {"message": "Choose at least one image."}, 400
+    if len(files) > remaining_slots:
+        return {"message": f"You can add {remaining_slots} more event images."}, 400
+
+    processed = []
+    try:
+        for upload in files:
+            image = Image.open(upload.stream)
+            image.verify()
+            upload.stream.seek(0)
+            image = Image.open(upload.stream)
+            image = ImageOps.exif_transpose(image)
+            image.thumbnail((1800, 1800))
+            if image.mode not in ("RGB", "L"):
+                background = Image.new("RGB", image.size, "white")
+                if "A" in image.getbands():
+                    background.paste(image, mask=image.getchannel("A"))
+                else:
+                    background.paste(image)
+                image = background
+            elif image.mode == "L":
+                image = image.convert("RGB")
+            output = BytesIO()
+            image.save(output, format="WEBP", quality=84, method=6)
+            processed.append((f"{uuid.uuid4().hex}.webp", output.getvalue()))
+    except (UnidentifiedImageError, OSError, ValueError):
+        return {"message": "Upload JPG, PNG, or WebP image files only."}, 400
+
+    start_position = len(event.images)
+    for offset, (filename, content) in enumerate(processed):
+        path = Path(current_app.config["UPLOAD_FOLDER"]) / filename
+        path.write_bytes(content)
+        db.session.add(EventImage(
+            filename=filename,
+            alt_text=f"{event.title} event image {start_position + offset + 1}",
+            position=start_position + offset,
+            event=event,
+        ))
+    db.session.commit()
+    return {"event": event.to_dict(include_private=True)}
+
+
+@events_bp.post("/<int:event_id>/submit")
+@login_required
+def submit_event(event_id):
+    event = db.get_or_404(Event, event_id)
+    if event.organiser_id != current_user.id:
+        return {"message": "You do not have permission to submit this event."}, 403
+    if event.status not in (EventStatus.DRAFT, EventStatus.REJECTED):
+        return {"message": "This event has already been submitted."}, 409
+    event.status = EventStatus.PENDING
+    event.rejection_reason = None
+    db.session.commit()
+    try:
+        notify_event_submission(event)
+    except Exception:
+        current_app.logger.exception("Event submission email could not be sent")
+    return {"event": event.to_dict(include_private=True)}
 
 
 @events_bp.get("/mine/list")
@@ -163,7 +240,7 @@ def update_event(event_id):
         return {"message": str(exc)}, 400
     for field, value in fields.items():
         setattr(event, field, value)
-    event.status = EventStatus.PENDING
+    event.status = EventStatus.DRAFT
     event.rejection_reason = None
     db.session.commit()
     return {"event": event.to_dict(include_private=True)}
@@ -194,11 +271,21 @@ def admin_overview():
 @role_required(UserRole.ADMIN)
 def decide_event(event_id):
     event = db.get_or_404(Event, event_id)
+    if event.status != EventStatus.PENDING:
+        return {"message": "Only pending events can be reviewed."}, 409
     data = request.get_json(silent=True) or {}
     decision = data.get("decision")
     if decision not in ("approved", "rejected"):
         return {"message": "Decision must be approved or rejected."}, 400
+    if decision == "rejected" and not str(data.get("reason", "")).strip():
+        return {"message": "Explain what the organiser needs to change."}, 400
     event.status = EventStatus(decision)
     event.rejection_reason = str(data.get("reason", "")).strip() if decision == "rejected" else None
     db.session.commit()
+    try:
+        subject = f"Your event was {decision}: {event.title}"
+        body = "Your event is now live on EventSpace." if decision == "approved" else f"Please revise and resubmit your event. Reviewer feedback: {event.rejection_reason}"
+        send_email(event.organiser.email, subject, body)
+    except Exception:
+        current_app.logger.exception("Event decision email could not be sent")
     return {"event": event.to_dict(include_private=True)}

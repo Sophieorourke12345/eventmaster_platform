@@ -57,10 +57,10 @@ onMounted(load)
       <button class="modal-close" aria-label="Close" @click="selected = null">×</button>
       <p class="eyebrow">Complete event review</p><h2 id="review-title">{{ selected.title }}</h2>
       <div class="review-facts"><p><strong>Organiser</strong>{{ selected.organiser.name }}</p><p><strong>Date</strong>{{ eventDate(selected.startsAt) }}</p><p><strong>Venue</strong>{{ selected.venue }}, {{ selected.county }}</p><p><strong>Tickets</strong>{{ selected.ticketCapacity }} × {{ euro(selected.ticketPriceCents) }}</p></div>
+      <div v-if="selected.images.length" class="review-gallery"><img v-for="image in selected.images" :key="image.id" :src="image.url" :alt="image.alt" /></div><p v-else class="no-images">No event images were submitted.</p>
       <div class="review-description"><strong>Description</strong><p>{{ selected.description }}</p></div>
       <label>Feedback for organiser<textarea v-model="reason" rows="4" placeholder="Required when rejecting an event"></textarea></label>
       <div class="button-row"><button class="button approve-button" :disabled="busy" @click="decide('approved')">Approve and publish</button><button class="button reject-button" :disabled="busy" @click="decide('rejected')">Reject with reason</button></div>
     </section>
   </div>
 </template>
-

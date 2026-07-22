@@ -1,7 +1,10 @@
 import unittest
+import tempfile
+from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
+from PIL import Image
 
 from app import create_app
 from app.extensions import bcrypt, db
@@ -10,12 +13,14 @@ from app.models import Event, EventStatus, Order, OrderStatus, Ticket, User, Use
 
 class EventSpaceWorkflowTests(unittest.TestCase):
     def setUp(self):
+        self.uploads = tempfile.TemporaryDirectory()
         self.app = create_app({
             "TESTING": True,
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SECRET_KEY": "test-only",
             "STRIPE_SECRET_KEY": "sk_test_fake",
             "STRIPE_WEBHOOK_SECRET": "whsec_fake",
+            "UPLOAD_FOLDER": self.uploads.name,
         })
         with self.app.app_context():
             db.create_all()
@@ -25,6 +30,7 @@ class EventSpaceWorkflowTests(unittest.TestCase):
     def tearDown(self):
         with self.app.app_context():
             db.drop_all()
+        self.uploads.cleanup()
 
     def request(self, method, path, **kwargs):
         headers = kwargs.pop("headers", {})
@@ -48,6 +54,15 @@ class EventSpaceWorkflowTests(unittest.TestCase):
         self.assertEqual(created.status_code, 201)
         self.assertEqual(self.client.get("/api/events").get_json()["events"], [])
         event_id = created.get_json()["event"]["id"]
+        image = BytesIO()
+        Image.new("RGB", (900, 600), "orange").save(image, "PNG")
+        image.seek(0)
+        upload = self.request("POST", f"/api/events/{event_id}/images", data={"images": (image, "event.png")}, content_type="multipart/form-data")
+        self.assertEqual(upload.status_code, 200)
+        self.assertEqual(len(upload.get_json()["event"]["images"]), 1)
+        submitted = self.request("POST", f"/api/events/{event_id}/submit", json={})
+        self.assertEqual(submitted.status_code, 200)
+        self.assertEqual(submitted.get_json()["event"]["status"], "pending")
         with self.app.app_context():
             user = User.query.filter_by(email="admin@example.com").first()
             user.role = UserRole.ADMIN
@@ -102,4 +117,3 @@ class EventSpaceWorkflowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

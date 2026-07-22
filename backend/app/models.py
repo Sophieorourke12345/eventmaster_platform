@@ -83,7 +83,7 @@ class Event(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     organiser = db.relationship("User", back_populates="events")
-    images = db.relationship("EventImage", back_populates="event", cascade="all, delete-orphan")
+    images = db.relationship("EventImage", back_populates="event", cascade="all, delete-orphan", order_by="EventImage.position")
     tickets = db.relationship("Ticket", back_populates="event", lazy="dynamic")
     orders = db.relationship("Order", back_populates="event", lazy="dynamic")
 

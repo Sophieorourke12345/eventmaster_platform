@@ -32,7 +32,7 @@ async function checkout() {
 <template>
   <p v-if="error" class="state-message state-message--error">{{ error }}</p>
   <section v-else-if="event" class="detail shell">
-    <div class="detail__image"><img v-if="event.images?.[0]" :src="event.images[0].url" :alt="event.images[0].alt" /><span v-else>{{ event.category }}</span></div>
+    <div class="detail__media"><div class="detail__image"><img v-if="event.images?.[0]" :src="event.images[0].url" :alt="event.images[0].alt" /><span v-else>{{ event.category }}</span></div><div v-if="event.images?.length > 1" class="detail__gallery"><img v-for="image in event.images.slice(1)" :key="image.id" :src="image.url" :alt="image.alt" /></div></div>
     <div class="detail__content"><p class="eyebrow">Verified event · {{ event.category }}</p><h1>{{ event.title }}</h1><dl><div><dt>When</dt><dd>{{ eventDate(event.startsAt) }}</dd></div><div><dt>Where</dt><dd>{{ event.venue }}, {{ event.county }}</dd></div><div><dt>Hosted by</dt><dd>{{ event.organiser.name }}</dd></div></dl><p class="detail__description">{{ event.description }}</p></div>
     <aside class="ticket-box"><p>Tickets from</p><strong>{{ euro(event.ticketPriceCents) }}</strong><span>{{ event.ticketsRemaining }} tickets remaining</span><label v-if="!event.soldOut">Quantity<select v-model.number="quantity"><option v-for="number in Math.min(event.ticketsRemaining, 10)" :key="number" :value="number">{{ number }}</option></select></label><p v-if="error" class="form-error">{{ error }}</p><button class="button" :disabled="event.soldOut || checkoutBusy" @click="checkout">{{ event.soldOut ? 'Sold out' : checkoutBusy ? 'Opening checkout…' : 'Get tickets' }}</button><small>Secure checkout powered by Stripe</small></aside>
   </section>

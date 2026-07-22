@@ -12,9 +12,10 @@ async function secureHeaders(method) {
 
 export async function api(path, options = {}) {
   const securityHeaders = await secureHeaders(options.method)
+  const contentHeaders = options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }
   const response = await fetch(`/api${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...securityHeaders, ...options.headers },
+    headers: { ...contentHeaders, ...securityHeaders, ...options.headers },
     ...options,
   })
   if (response.status === 204) return null
